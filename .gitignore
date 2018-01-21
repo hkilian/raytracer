@@ -1,3 +1,7 @@
+# Logs
+log.txt
+logs/
+
 # OS X only (not needed on other platforms)
 .DS_Store
 *.swp

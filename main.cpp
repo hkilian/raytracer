@@ -1,10 +1,3 @@
-//
-//  main.cpp
-//  Raytracer
-//
-//  Created by Harry on 17/01/2018.
-//  Copyright © 2018 Harry. All rights reserved.
-//
 
 // System
 #include <iostream>
@@ -14,34 +7,40 @@
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten.h>
+    // Logging
+    #define LOG_INFO(TEXT) std::cout << "INFO: " << TEXT << std::endl;
+#else
+    // Logging
+    #include "easylogging++.h"
+    INITIALIZE_EASYLOGGINGPP
+    #define LOG_INFO(TEXT) LOG(INFO) << TEXT;
+    #define LOG_VEC3(TEXT, vec3) LOG(INFO) << TEXT << " = " << vec3.x_ << ", " << vec3.y_ << ", " << vec3.z_;
 #endif
 
 // Raytracer
+#include "Vec3.hpp"
 #include "TextureImage.hpp"
 
 //Screen dimension constants
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 480;
 
-//Starts up SDL and creates window
+// Starts up SDL and creates window
 bool init();
 
-//Loads media
-bool loadMedia();
-
-//Frees media and shuts down SDL
+// Shuts down SDL
 void close();
 
-//The window we'll be rendering to
+// The window we'll be rendering to
 SDL_Window* window_ = NULL;
 
-//The window renderer
+// The window renderer
 SDL_Renderer* renderer_ = NULL;
 
-//Event handler
+// SDL Event handler
 SDL_Event e;
 
-//Scene texture
+// Screen texture
 TextureImage screenTexture_;
 
 // Timer
@@ -85,19 +84,6 @@ bool init() {
                 
             }
         }
-    }
-    
-    return success;
-}
-
-bool loadMedia() {
-    //Loading success flag
-    bool success = true;
-    
-    //Load texture
-    if( !screenTexture_.createBlank(renderer_, window_, SCREEN_WIDTH, SCREEN_HEIGHT) ) {
-        printf( "Failed to load colors texture!\n" );
-        success = false;
     }
     
     return success;
@@ -162,12 +148,6 @@ void loop(void) {
                 int g = y * (255.0f / SCREEN_HEIGHT);
                 int b = (M_PI/2+sin(timer*0.01)/2) * 255;
                 
-                if(rand() % 20 == 0) {
-                    r = 0;
-                    g = 0;
-                    b = 0;
-                }
-                
                 Uint32 col = SDL_MapRGBA( mappingFormat, r, g, b, 255);
                 pixels[i] = col;
             }
@@ -196,13 +176,30 @@ void loop(void) {
 
 int main( int argc, char* args[] ) {
     
+    #ifndef __EMSCRIPTEN__
+        // Configure logging
+        el::Configurations conf("./logging.conf");
+        el::Loggers::reconfigureAllLoggers(conf);
+    #endif
+    
+    LOG_INFO("Raytracer application start");
+    
+    Vec3 v1 = Vec3(5, 5, 5);
+    Vec3 v2 = Vec3(10, 10, 10);
+    
+    LOG_VEC3("v1", v1);
+    LOG_VEC3("v2", v2);
+    
+    Vec3 a = v1 / v2;
+    LOG_VEC3("added", a);
+    
     //Start up SDL and create window
     if( !init() ) {
-        printf( "Failed to initialize!\n" );
+        LOG_INFO("Failed to initialize!");
     } else {
         //Load media
-        if( !loadMedia() ) {
-            printf( "Failed to load media!\n" );
+        if( !screenTexture_.createBlank(renderer_, window_, SCREEN_WIDTH, SCREEN_HEIGHT) ) {
+            LOG_INFO("Failed to create texture for screen");
         } else {
             
             #ifdef __EMSCRIPTEN__

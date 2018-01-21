@@ -1,13 +1,5 @@
-//
-//  texture.hpp
-//  Raytracer
-//
-//  Created by Harry on 18/01/2018.
-//  Copyright © 2018 Harry. All rights reserved.
-//
 
-#ifndef texture_hpp
-#define texture_hpp
+#pragma once
 
 // System
 #include <iostream>
@@ -18,8 +10,6 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
-
-#endif /* texture_hpp */
 
 //Texture wrapper class
 class TextureImage
