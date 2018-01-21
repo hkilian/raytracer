@@ -9,6 +9,7 @@
     #include <emscripten.h>
     // Logging
     #define LOG_INFO(TEXT) std::cout << "INFO: " << TEXT << std::endl;
+    #define LOG_VEC3(TEXT, vec3) std::cout << TEXT << " = " << vec3.x_ << ", " << vec3.y_ << ", " << vec3.z_ << std::endl;
 #else
     // Logging
     #include "easylogging++.h"
@@ -19,6 +20,7 @@
 
 // Raytracer
 #include "Vec3.hpp"
+#include "Ray.hpp"
 #include "TextureImage.hpp"
 
 //Screen dimension constants
@@ -104,6 +106,30 @@ void close() {
     SDL_Quit();
 }
 
+bool hitSphere(Vec3 center, float radius, const Ray ray) {
+    
+    Vec3 oc = ray.Origin() - center;
+    float a = Dot(ray.Direction(), ray.Direction());
+    float b = 2.0 * Dot(oc, ray.Direction());
+    float c = Dot(oc, oc) - radius * radius;
+    float discriminant = b*b - 4 *a*c;
+    
+    return discriminant>0;
+    
+}
+
+Vec3 color(const Ray &ray) {
+    
+    if(hitSphere(Vec3(0,0,-1), 0.5, ray)) {
+        return Vec3(1.0, 0.0, 0.0);
+    }
+    
+    Vec3 direction = ray.Direction().Normalized();
+    float t = 0.5f * (direction.y_ + 1.0f);
+    return (1.0-t) * Vec3(1.0, 1.0, 1.0) + t * Vec3(0.5, 0.7, 1.0);
+    
+}
+
 void loop(void) {
     
     //Handle events on queue
@@ -131,25 +157,28 @@ void loop(void) {
             printf( "No pixels returned. \n" );
         }
         
-        //Map colors
-        Uint32 colorKey = SDL_MapRGB( mappingFormat, 0, 0xFF, 0xFF );
-        Uint32 transparent = SDL_MapRGBA( mappingFormat, 0xFF, 0xFF, 0xFF, 0x00 );
-        Uint32 red = SDL_MapRGBA( mappingFormat, 255, 0, 0, 255 );
-        Uint32 black = SDL_MapRGBA( mappingFormat, 0, 0, 0, 255 );
-        
         timer += 1;
         
-        //Color key pixels
+        // Spaces
+        float ratio = float(SCREEN_WIDTH) / SCREEN_HEIGHT;
+        Vec3 origin = Vec3(0,0,0);
+        Vec3 lowerLeft = Vec3(-ratio, -1, -1);
+        Vec3 horizontal = Vec3(ratio * 2, 0, 0);
+        Vec3 vertical = Vec3(0, 2, 0);
+        
+        // Fill screen
         for( int y = 0; y < SCREEN_HEIGHT; ++y ) {
             for( int x = 0; x < SCREEN_WIDTH; ++x ) {
                 
-                int i = x + SCREEN_WIDTH * y;
-                int r = x * (255.0f / SCREEN_WIDTH);
-                int g = y * (255.0f / SCREEN_HEIGHT);
-                int b = (M_PI/2+sin(timer*0.01)/2) * 255;
+                float u = (float)x / SCREEN_WIDTH;
+                float v = (float)y / SCREEN_HEIGHT;
                 
-                Uint32 col = SDL_MapRGBA( mappingFormat, r, g, b, 255);
-                pixels[i] = col;
+                Ray ray = Ray(origin, lowerLeft + (u*horizontal) + (v*vertical));
+                Vec3 col = color(ray);
+                Uint32 pixel = SDL_MapRGBA( mappingFormat, col.x_ * 255, col.y_ * 255, col.z_ * 255, 255);
+                
+                int i = x + SCREEN_WIDTH * y;
+                pixels[i] = pixel;
             }
         }
         
@@ -190,8 +219,10 @@ int main( int argc, char* args[] ) {
     LOG_VEC3("v1", v1);
     LOG_VEC3("v2", v2);
     
-    Vec3 a = v1 / v2;
-    LOG_VEC3("added", a);
+    v1 = v1 * 7.0f;
+    Vec3 n = v1.Normalized();
+    LOG_VEC3("v1", v1);
+    LOG_VEC3("n", n);
     
     //Start up SDL and create window
     if( !init() ) {
