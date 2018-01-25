@@ -7,4 +7,4 @@ Materials
 Lighting
 
 Progress so far:
-![screenshot](blob:https://imgur.com/1215821e-9527-4a01-8c69-1c8717381916)
+![screenshot](https://i.imgur.com/zGzev01.png)
