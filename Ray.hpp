@@ -20,8 +20,8 @@ public:
     Vec3 Direction() const { return direction_; }
     
     // Functions
-    Vec3 PointAtParameter(float d) {
-        return direction_ + (d * direction_);
+    Vec3 PointAtParameter(float t) const {
+        return origin_ + (t * direction_);
     }
     
 private:

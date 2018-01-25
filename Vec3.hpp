@@ -17,6 +17,7 @@ public:
     
     // Constuctor/destructor
     Vec3() { x_ = 0; y_ = 0; z_ = 0;}
+    Vec3(float v) { x_ = v; y_ = v; z_ = v;}
     Vec3(float x, float y, float z) { x_ = x; y_ = y; z_ = z;}
     ~Vec3() {};
     
@@ -42,6 +43,7 @@ public:
     // Functions
     float Length();
     Vec3 Normalized();
+    float SquaredLength();
     
     // Values
     float x_;

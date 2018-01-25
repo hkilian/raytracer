@@ -22,6 +22,7 @@
 #include "Vec3.hpp"
 #include "Ray.hpp"
 #include "TextureImage.hpp"
+#include "Camera.hpp"
 
 //Screen dimension constants
 const int SCREEN_WIDTH = 800;
@@ -50,6 +51,13 @@ float timer = 0;
 
 //Main loop flag
 bool quit = false;
+
+// Main camera
+Camera camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+int pixelsDoneX = 0;
+int pixelsDoneY = 0;
+bool finishedRender = false;
 
 bool init() {
     
@@ -106,27 +114,103 @@ void close() {
     SDL_Quit();
 }
 
-bool hitSphere(Vec3 center, float radius, const Ray ray) {
+Vec3 randInUnitSphere() {
     
-    Vec3 oc = ray.Origin() - center;
+    Vec3 p = Vec3(99,99,99);
+    //LOG_INFO(drand48());
+    do {
+        p = 1.0 * Vec3(drand48(), drand48(), drand48()) - Vec3(1,1,1);
+    } while(p.SquaredLength() >= 1.0 );
+    
+    return p;
+}
+
+struct HitData {
+    float t;
+    Vec3 p;
+    Vec3 normal;
+};
+
+bool hitSphere(Vec3 center, float t_min, float t_max, float radius, const Ray ray, HitData &data) {
+    
+    // Distance between center of sphere and ray origin
+    Vec3 dis = ray.Origin() - center;
     float a = Dot(ray.Direction(), ray.Direction());
-    float b = 2.0 * Dot(oc, ray.Direction());
-    float c = Dot(oc, oc) - radius * radius;
-    float discriminant = b*b - 4 *a*c;
+    float b = Dot(dis, ray.Direction());
+    float c = Dot(dis, dis) - radius * radius;
+    float discriminant = b*b - a*c;
     
-    return discriminant>0;
+    if(discriminant > 0) {
+        
+        float temp = (-b - sqrt(b*b-a*c)) / (a);
+        
+        if(temp < t_max && temp > t_min) {
+            
+            // Set data
+            data.t = temp;
+            data.p = ray.PointAtParameter(data.t);
+        
+            data.normal = Vec3(data.p - center).Normalized();
+            data.normal = 0.5*Vec3(data.normal.x_+1.0f, data.normal.y_+1.0f, data.normal.z_+1.0f);
+            
+            return true;
+            
+        }
+        
+        temp = (-b + sqrt(discriminant)) / a;
+        if (temp < t_max && temp > t_min) {
+            data.t = temp;
+            data.p = ray.PointAtParameter(data.t);
+            data.normal = (data.p - center) / radius;
+            return true;
+        }
+        
+    }
+    
+    return false;
     
 }
 
-Vec3 color(const Ray &ray) {
+bool hit(const Ray &ray, float t_min, float t_max, HitData &data) {
     
-    if(hitSphere(Vec3(0,0,-1), 0.5, ray)) {
-        return Vec3(1.0, 0.0, 0.0);
+    // Main sphere
+    if(hitSphere(Vec3(0.4, 0.0, -1), t_min, t_max, 0.4, ray, data)) {
+        return true;
     }
     
-    Vec3 direction = ray.Direction().Normalized();
-    float t = 0.5f * (direction.y_ + 1.0f);
-    return (1.0-t) * Vec3(1.0, 1.0, 1.0) + t * Vec3(0.5, 0.7, 1.0);
+    // Main sphere
+    if(hitSphere(Vec3(-0.4, 0.0, -1), t_min, t_max, 0.4, ray, data)) {
+        return true;
+    }
+    
+    // Ground
+    if(hitSphere(Vec3(0.0, 100.4, -1), t_min, t_max, 100.0, ray, data)) {
+        return true;
+    }
+    
+    return false;
+    
+}
+
+Vec3 color(const Ray &ray, int depth) {
+    
+    Vec3 out = Vec3(0,0,0);
+    HitData data;
+    if(hit(ray, 0.001, 9999999999.0, data)) {
+        
+        Vec3 target = data.p + data.normal + randInUnitSphere();
+        out = 0.5 * color(Ray(data.p, target - data.p), depth+1);
+        //out = data.normal;
+        
+    } else {
+    
+        Vec3 direction = ray.Direction().Normalized();
+        float t = 0.5f * (direction.y_ + 1.0f);
+        out = (1.0-t) * Vec3(1.0, 1.0, 1.0) + t * Vec3(0.5, 0.7, 1.0);
+        
+    }
+    
+    return out;
     
 }
 
@@ -140,6 +224,10 @@ void loop(void) {
         } else if( e.type == SDL_KEYDOWN ) {
             // Any other key down
         }
+    }
+    
+    if(finishedRender) {
+        return;
     }
     
     if( !screenTexture_.lockTexture() ) {
@@ -158,28 +246,59 @@ void loop(void) {
         }
         
         timer += 1;
-        
-        // Spaces
-        float ratio = float(SCREEN_WIDTH) / SCREEN_HEIGHT;
-        Vec3 origin = Vec3(0,0,0);
-        Vec3 lowerLeft = Vec3(-ratio, -1, -1);
-        Vec3 horizontal = Vec3(ratio * 2, 0, 0);
-        Vec3 vertical = Vec3(0, 2, 0);
+        int pixelsPerFrame = 500;
+        int pixelsRenderedThisFrame = 0;
+        bool finishedFrame = false;
         
         // Fill screen
-        for( int y = 0; y < SCREEN_HEIGHT; ++y ) {
-            for( int x = 0; x < SCREEN_WIDTH; ++x ) {
+        for( int y = pixelsDoneY; y < SCREEN_HEIGHT; ++y ) {
+            if(finishedFrame) break;
+            for( int x = pixelsDoneX; x < SCREEN_WIDTH; ++x ) {
                 
-                float u = (float)x / SCREEN_WIDTH;
-                float v = (float)y / SCREEN_HEIGHT;
+                if(finishedFrame) break;
+                int samplesPerRay = 50;
+                Vec3 col(0,0,0);
                 
-                Ray ray = Ray(origin, lowerLeft + (u*horizontal) + (v*vertical));
-                Vec3 col = color(ray);
-                Uint32 pixel = SDL_MapRGBA( mappingFormat, col.x_ * 255, col.y_ * 255, col.z_ * 255, 255);
+                // Samples
+                for( int s = 0; s < samplesPerRay; ++s ) {
+                    
+                    float u = (float)(x + drand48()) / float(SCREEN_WIDTH);
+                    float v = (float)(y + drand48()) / float(SCREEN_HEIGHT);
+                    
+                    Ray ray = Ray(camera.origin, camera.lowerLeft + (u*camera.horizontal) + (v*camera.vertical));
+                    col += color(ray, 0);
+                    
+                }
+                
+                col /= samplesPerRay;
+                
+                // Bring into correct gamma
+                col = Vec3(sqrt(col.x_), sqrt(col.y_), sqrt(col.z_));
+                int ir = int(255.99*col.x_);
+                int ig = int(255.99*col.y_);
+                int ib = int(255.99*col.z_);
                 
                 int i = x + SCREEN_WIDTH * y;
+                Uint32 pixel = SDL_MapRGBA( mappingFormat, ir, ig, ib, 255);
                 pixels[i] = pixel;
+                
+                pixelsRenderedThisFrame += 1;
+                pixelsDoneX = x;
+                pixelsDoneY = y;
+                
+                if(pixelsRenderedThisFrame >= pixelsPerFrame) {
+                    finishedFrame = true;
+                }
+                
             }
+            if(finishedFrame == false) {
+                pixelsDoneX = 0;
+            }
+        }
+        
+        // See if finished
+        if(pixelsDoneY >= SCREEN_HEIGHT && pixelsDoneX >= SCREEN_WIDTH) {
+            //finishedRender = true;
         }
         
         //Unlock texture
@@ -213,28 +332,18 @@ int main( int argc, char* args[] ) {
     
     LOG_INFO("Raytracer application start");
     
-    Vec3 v1 = Vec3(5, 5, 5);
-    Vec3 v2 = Vec3(10, 10, 10);
-    
-    LOG_VEC3("v1", v1);
-    LOG_VEC3("v2", v2);
-    
-    v1 = v1 * 7.0f;
-    Vec3 n = v1.Normalized();
-    LOG_VEC3("v1", v1);
-    LOG_VEC3("n", n);
-    
     //Start up SDL and create window
     if( !init() ) {
         LOG_INFO("Failed to initialize!");
     } else {
-        //Load media
+        
+        // Create blank surface to render onto
         if( !screenTexture_.createBlank(renderer_, window_, SCREEN_WIDTH, SCREEN_HEIGHT) ) {
             LOG_INFO("Failed to create texture for screen");
         } else {
             
             #ifdef __EMSCRIPTEN__
-            emscripten_set_main_loop(loop, 0, 1);
+                emscripten_set_main_loop(loop, 0, 1);
             #else
                 while( !quit ) {
                     loop();

@@ -89,6 +89,10 @@ float Vec3::Length() {
     return sqrt(x_ * x_ + y_ * y_ + z_ * z_);
 }
 
+float Vec3::SquaredLength() {
+    return x_ * x_ + y_ * y_ + z_ * z_;
+}
+
 Vec3 Vec3::Normalized() {
     return (*this) / (*this).Length();
 }
